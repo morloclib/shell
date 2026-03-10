@@ -1,0 +1,648 @@
+module shell (*)
+
+import root
+
+
+-- Type aliases
+-----------------
+
+--' A filesystem path (file or directory)
+--' metavar: PATH
+--' literal: true
+type Path = Str
+
+--' A directory path
+--' metavar: DIR
+--' literal: true
+type DirPath = Str
+
+--' A file extension including the dot (e.g., ".txt")
+--' metavar: EXT
+--' literal: true
+type Extension = Str
+
+--' A process identifier
+--' metavar: PID
+type Pid = Int
+
+--' A process exit code (0 = success)
+--' metavar: CODE
+type ExitCode = Int
+
+--' A POSIX signal number
+--' metavar: SIG
+type Signal = Int
+
+--' A file permission mode in octal (e.g., 0o755)
+--' metavar: MODE
+type FileMode = Int
+
+--' A numeric user identifier
+--' metavar: UID
+type Uid = Int
+
+--' A numeric group identifier
+--' metavar: GID
+type Gid = Int
+
+--' A POSIX timestamp (seconds since epoch)
+--' metavar: TIME
+type Timestamp = Real
+
+--' A size in bytes
+--' metavar: BYTES
+type Bytes = Int64
+
+--' A glob pattern for matching paths (e.g., "*.txt")
+--' metavar: GLOB
+--' literal: true
+type GlobPattern = Str
+
+--' An environment variable name
+--' metavar: VAR
+--' literal: true
+type EnvVar = Str
+
+
+-- Data records
+-----------------
+
+--' File status information (like stat(2))
+--' metavar: FILE_STAT
+record FileStat where
+  --' file size in bytes
+  size :: Bytes
+  --' last modification time
+  mtime :: Timestamp
+  --' last access time
+  atime :: Timestamp
+  --' creation time (where supported)
+  ctime :: Timestamp
+  --' permission mode
+  mode :: FileMode
+  --' numeric owner id
+  uid :: Uid
+  --' numeric group id
+  gid :: Gid
+  --' owner name
+  owner :: Str
+  --' group name
+  group :: Str
+  --' number of hard links
+  nlinks :: Int
+  --' true if regular file
+  isFile :: Bool
+  --' true if directory
+  isDir :: Bool
+  --' true if symbolic link
+  isSymlink :: Bool
+
+--' Result of a process execution
+--' metavar: PROC_RESULT
+record ProcessResult where
+  --' exit code (0 = success)
+  exitCode :: ExitCode
+  --' captured standard output
+  stdout :: Str
+  --' captured standard error
+  stderr :: Str
+
+--' Information about a running process
+--' metavar: PROC_INFO
+record ProcessInfo where
+  --' process id
+  pid :: Pid
+  --' parent process id
+  ppid :: Pid
+  --' user who owns the process
+  user :: Str
+  --' process state (R, S, D, Z, T, etc.)
+  state :: Str
+  --' cpu usage percentage
+  cpuPercent :: Real
+  --' memory usage percentage
+  memPercent :: Real
+  --' virtual memory size in bytes
+  virt :: Bytes
+  --' resident set size in bytes
+  rss :: Bytes
+  --' shared memory in bytes
+  shared :: Bytes
+  --' nice value
+  nice :: Int
+  --' scheduling priority
+  priority :: Int
+  --' cumulative cpu time in seconds
+  cpuTime :: Real
+  --' executable name
+  command :: Str
+  --' full command line
+  cmdline :: Str
+
+--' System memory information
+--' metavar: MEM_INFO
+record MemInfo where
+  --' total physical memory in bytes
+  total :: Bytes
+  --' available memory in bytes
+  available :: Bytes
+  --' used memory in bytes
+  used :: Bytes
+  --' free memory in bytes
+  free :: Bytes
+  --' memory used by buffers in bytes
+  buffers :: Bytes
+  --' memory used by cache in bytes
+  cached :: Bytes
+  --' total swap space in bytes
+  swapTotal :: Bytes
+  --' used swap space in bytes
+  swapUsed :: Bytes
+  --' free swap space in bytes
+  swapFree :: Bytes
+
+--' Disk usage information for a filesystem
+--' metavar: DISK_INFO
+record DiskInfo where
+  --' mount point path
+  mountPoint :: Path
+  --' filesystem type (ext4, btrfs, etc.)
+  fsType :: Str
+  --' total space in bytes
+  total :: Bytes
+  --' used space in bytes
+  used :: Bytes
+  --' free space in bytes
+  free :: Bytes
+  --' usage percentage
+  usagePercent :: Real
+
+--' System identification information
+--' metavar: SYS_INFO
+record SystemInfo where
+  --' operating system name
+  osName :: Str
+  --' network hostname
+  nodeName :: Str
+  --' kernel release string
+  release :: Str
+  --' kernel version string
+  version :: Str
+  --' hardware architecture
+  machine :: Str
+
+--' System load averages
+--' metavar: LOAD_INFO
+record LoadInfo where
+  --' 1-minute load average
+  load1 :: Real
+  --' 5-minute load average
+  load5 :: Real
+  --' 15-minute load average
+  load15 :: Real
+
+--' A directory entry with name and type
+--' metavar: DIR_ENTRY
+record DirEntry where
+  --' entry name (not full path)
+  name :: Str
+  --' full path
+  path :: Path
+  --' true if regular file
+  isFile :: Bool
+  --' true if directory
+  isDir :: Bool
+  --' true if symbolic link
+  isSymlink :: Bool
+
+
+-- Option records
+-------------------
+
+--' Options for listing directory contents
+--' metavar: LS_OPTS
+--' unroll: true
+record LsOpts where
+  --' include hidden files (starting with .)
+  --' true: -a/--all
+  --' default: false
+  showAll :: Bool
+
+  --' follow symbolic links
+  --' true: -L/--follow
+  --' default: false
+  followSymlinks :: Bool
+
+  --' sort by modification time
+  --' true: -t/--sort-time
+  --' default: false
+  sortByTime :: Bool
+
+  --' reverse the listing order
+  --' true: -r/--reverse
+  --' default: false
+  reverseOrder :: Bool
+
+--' Options for finding files
+--' metavar: FIND_OPTS
+--' unroll: true
+record FindOpts where
+  --' glob pattern to match filenames
+  --' arg: -n/--name
+  --' metavar: GLOB
+  --' default: "*"
+  --' literal: true
+  namePattern :: Str
+
+  --' maximum traversal depth (-1 for unlimited)
+  --' arg: -d/--max-depth
+  --' metavar: DEPTH
+  --' default: -1
+  maxDepth :: Int
+
+  --' match only files
+  --' true: --files-only
+  --' default: false
+  filesOnly :: Bool
+
+  --' match only directories
+  --' true: --dirs-only
+  --' default: false
+  dirsOnly :: Bool
+
+  --' follow symbolic links during traversal
+  --' true: -L/--follow
+  --' default: false
+  followSymlinks :: Bool
+
+--' Options for copying files
+--' metavar: CP_OPTS
+--' unroll: true
+record CpOpts where
+  --' copy directories recursively
+  --' true: -r/--recursive
+  --' default: false
+  recursive :: Bool
+
+  --' preserve file attributes (mode, timestamps, ownership)
+  --' true: -p/--preserve
+  --' default: false
+  preserve :: Bool
+
+  --' do not overwrite existing files
+  --' true: --no-clobber
+  --' default: false
+  noClobber :: Bool
+
+--' Options for removing files
+--' metavar: RM_OPTS
+--' unroll: true
+record RmOpts where
+  --' remove directories recursively
+  --' true: -r/--recursive
+  --' default: false
+  recursive :: Bool
+
+  --' ignore errors for nonexistent files
+  --' true: -f/--force
+  --' default: false
+  force :: Bool
+
+--' Options for running a process
+--' metavar: RUN_OPTS
+--' unroll: true
+record RunOpts where
+  --' working directory for the process
+  --' arg: -C/--cwd
+  --' metavar: DIR
+  --' default: "."
+  --' literal: true
+  cwd :: Str
+
+  --' environment variables to set (key=value pairs)
+  --' arg: -e/--env
+  --' metavar: ENV
+  --' default: []
+  env :: [Str]
+
+  --' timeout in seconds (0 for no timeout)
+  --' arg: --timeout
+  --' metavar: SECONDS
+  --' default: 0
+  timeout :: Int
+
+  --' merge stderr into stdout
+  --' true: --merge-stderr
+  --' default: false
+  mergeStderr :: Bool
+
+
+-- Infix operators
+--------------------
+
+infixl 6 (</>)
+infixl 7 (<.>)
+
+--' Join two path segments with a separator
+(</>) :: Path -> Path -> Path
+
+--' Append a file extension to a path
+(<.>) :: Path -> Extension -> Path
+
+
+-- Signal constants
+---------------------
+
+--' Hangup signal (1)
+sigHUP :: Signal
+
+--' Interrupt signal (2)
+sigINT :: Signal
+
+--' Quit signal (3)
+sigQUIT :: Signal
+
+--' Kill signal (9) - cannot be caught
+sigKILL :: Signal
+
+--' Termination signal (15)
+sigTERM :: Signal
+
+--' Stop signal (19) - cannot be caught
+sigSTOP :: Signal
+
+--' Continue a stopped process (18)
+sigCONT :: Signal
+
+--' User-defined signal 1 (10)
+sigUSR1 :: Signal
+
+--' User-defined signal 2 (12)
+sigUSR2 :: Signal
+
+--' Alarm signal (14)
+sigALRM :: Signal
+
+
+-- A. Pure path operations
+----------------------------
+
+--' Join two path segments with a directory separator
+pathJoin :: Path -> Path -> Path
+
+--' Split a path into directory and filename
+pathSplit :: Path -> (DirPath, Str)
+
+--' Get the directory component of a path
+pathDir :: Path -> DirPath
+
+--' Get the final component of a path
+pathBase :: Path -> Str
+
+--' Get the file extension including the dot
+pathExt :: Path -> Extension
+
+--' Get the filename without its extension
+pathStem :: Path -> Str
+
+--' Replace the extension of a path
+replaceExt :: Path -> Extension -> Path
+
+--' Add an extension to a path
+addExt :: Path -> Extension -> Path
+
+--' Remove the extension from a path
+dropExt :: Path -> Path
+
+--' Normalize a path (resolve . and .. components)
+normPath :: Path -> Path
+
+--' Check if a path is absolute
+isAbsolute :: Path -> Bool
+
+--' Check if a path is relative
+isRelative :: Path -> Bool
+
+--' Split a path into its individual components
+pathComponents :: Path -> [Str]
+
+
+-- B. Filesystem navigation
+------------------------------
+
+--' Get the current working directory
+pwd :: <IO> Path
+
+--' Change the current working directory
+cd :: DirPath -> <IO> Unit
+
+--' Resolve a path to its canonical absolute form
+realpath :: Path -> <IO> Path
+
+--' Get the current user's home directory
+homeDir :: <IO> DirPath
+
+--' Get the system temporary directory
+tmpDir :: <IO> DirPath
+
+
+-- C. Directory listing
+-------------------------
+
+--' List entries in a directory
+ls :: DirPath -> <IO> [Str]
+
+--' List entries in a directory with options
+lsWith :: LsOpts -> DirPath -> <IO> [Str]
+
+--' List entries in a directory with full stat information
+lsStat :: DirPath -> <IO> [DirEntry]
+
+
+-- D. File management
+-----------------------
+
+--' Copy a file or directory
+cp :: CpOpts -> Path -> Path -> <IO> Unit
+
+--' Move or rename a file or directory
+mv :: Path -> Path -> <IO> Unit
+
+--' Remove a file or directory
+rm :: RmOpts -> Path -> <IO> Unit
+
+--' Create a directory (and parents as needed)
+mkdir :: DirPath -> <IO> Unit
+
+--' Create an empty file or update its modification time
+touch :: Path -> <IO> Unit
+
+--' Change file permissions
+chmod :: FileMode -> Path -> <IO> Unit
+
+--' Change file ownership
+chown :: Uid -> Gid -> Path -> <IO> Unit
+
+--' Create a symbolic link
+symlink :: Path -> Path -> <IO> Unit
+
+--' Create a hard link
+hardlink :: Path -> Path -> <IO> Unit
+
+--' Read the target of a symbolic link
+readlink :: Path -> <IO> Path
+
+--' Rename a file or directory
+rename :: Path -> Path -> <IO> Unit
+
+
+-- E. File I/O
+-----------------
+
+--' Read the entire contents of a file as a string
+readFile :: Path -> <IO> Str
+
+--' Write a string to a file (replaces contents)
+writeFile :: Path -> Str -> <IO> Unit
+
+--' Append a string to the end of a file
+appendFile :: Path -> Str -> <IO> Unit
+
+--' Read a file as a list of lines
+readLines :: Path -> <IO> [Str]
+
+--' Write a list of lines to a file
+writeLines :: Path -> [Str] -> <IO> Unit
+
+--' Read the entire contents of a file as raw bytes
+readBytes :: Path -> <IO> [Int]
+
+--' Write raw bytes to a file
+writeBytes :: Path -> [Int] -> <IO> Unit
+
+--' Read the first n lines of a file
+readHead :: Path -> Int -> <IO> [Str]
+
+
+-- F. File information
+------------------------
+
+--' Get detailed file status information
+--' literal: true
+stat :: Path -> <IO> FileStat
+
+--' Get the size of a file in bytes
+fileSize :: Path -> <IO> Bytes
+
+--' Check if a path exists on the filesystem
+pathExists :: Path -> <IO> Bool
+
+--' Check if a path is a regular file
+isFile :: Path -> <IO> Bool
+
+--' Check if a path is a directory
+isDir :: Path -> <IO> Bool
+
+
+-- G. Directory traversal
+---------------------------
+
+--' Find paths matching a glob pattern
+glob :: GlobPattern -> <IO> [Path]
+
+--' Find files and directories matching criteria
+findFiles :: FindOpts -> DirPath -> <IO> [Path]
+
+--' Walk a directory tree yielding (dirpath, dirnames, filenames) triples
+walk :: DirPath -> <IO> [(DirPath, [Str], [Str])]
+
+--' Walk a directory tree with a filter predicate on entries
+walkFilter :: (DirEntry -> Bool) -> DirPath -> <IO> [(DirPath, [Str], [Str])]
+
+
+-- H. Process execution
+--------------------------
+
+--' Run a command with arguments
+run :: Str -> [Str] -> <IO> ProcessResult
+
+--' Run a command with arguments and options
+runWith :: RunOpts -> Str -> [Str] -> <IO> ProcessResult
+
+--' Run a shell command string (interpreted by /bin/sh)
+shell :: Str -> <IO> ProcessResult
+
+--' Run a command and return only its stdout
+capture :: Str -> [Str] -> <IO> Str
+
+--' Replace the current process with a new command
+exec :: Str -> [Str] -> <IO> Unit
+
+
+-- I. Process information
+---------------------------
+
+--' Get the current process id
+getPid :: <IO> Pid
+
+--' Get the parent process id
+getParentPid :: <IO> Pid
+
+--' List all running processes
+listProcesses :: <IO> [ProcessInfo]
+
+--' Get information about a specific process
+getProcess :: Pid -> <IO> ProcessInfo
+
+--' Get child processes of a given process
+processChildren :: Pid -> <IO> [ProcessInfo]
+
+--' Send a signal to a process
+kill :: Signal -> Pid -> <IO> Unit
+
+--' Wait for a process to exit and return its exit code
+waitPid :: Pid -> <IO> ExitCode
+
+
+-- J. System information
+--------------------------
+
+--' Get system identification (like uname(2))
+uname :: <IO> SystemInfo
+
+--' Get the system hostname
+hostname :: <IO> Str
+
+--' Get system uptime in seconds
+uptime :: <IO> Real
+
+--' Get the number of available CPU cores
+cpuCount :: <IO> Int
+
+--' Get system memory information
+memInfo :: <IO> MemInfo
+
+--' Get disk usage information for all mounted filesystems
+diskInfo :: <IO> [DiskInfo]
+
+--' Get system load averages
+loadAvg :: <IO> LoadInfo
+
+
+-- K. Environment variables
+-----------------------------
+
+--' Get the value of an environment variable
+getEnv :: EnvVar -> <IO> Str
+
+--' Set an environment variable
+setEnv :: EnvVar -> Str -> <IO> Unit
+
+--' Unset an environment variable
+unsetEnv :: EnvVar -> <IO> Unit
+
+--' Get all environment variables as key-value pairs
+environ :: <IO> [(EnvVar, Str)]
+
+--' Check if an environment variable is set
+hasEnv :: EnvVar -> <IO> Bool
