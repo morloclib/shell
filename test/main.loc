@@ -1,0 +1,269 @@
+module shell.test (test)
+
+import shell
+import root-py
+
+-------------------------------------------------------------------------------
+-- Test suite functions
+
+source Py from "shell-test.py"
+    ( "testEqual"
+    , "testTrue"
+    , "testGe"
+    , "testNonEmpty"
+    , "testContains"
+    , "printMsg"
+    , "printResult"
+    , "cleanDir"
+    )
+
+testEqual :: Str -> a -> a -> (Int, Int) -> (Int, Int)
+testTrue :: Str -> Bool -> (Int, Int) -> (Int, Int)
+testGe :: Str -> Int -> Int -> (Int, Int) -> (Int, Int)
+testNonEmpty :: Str -> Str -> (Int, Int) -> (Int, Int)
+testContains :: Str -> [a] -> a -> (Int, Int) -> (Int, Int)
+printMsg :: Str -> a -> a
+printResult :: (Int, Int) -> (Int, Int)
+cleanDir :: Str -> <IO> Unit
+
+testGroup
+    :: Str
+    -> ((Int, Int) -> (Int, Int))
+    -> (Int, Int)
+    -> (Int, Int)
+testGroup msg tests = tests . printMsg msg
+
+passed :: (Int, Int) -> Bool
+passed t = 0 == (.0 t)
+
+test = runTests (0,0)
+
+-------------------------------------------------------------------------------
+-- Test suite
+
+runTests :: (Int, Int) -> Bool
+runTests =
+  ( passed
+  . printResult
+  . testGroup "System Info" testSysInfo
+  . testGroup "Environment" testEnvVars
+  . testGroup "Process" testProcess
+  . testGroup "Glob" testGlob
+  . testGroup "Directory Ops" testDirOps
+  . testGroup "File Info" testFileInfo
+  . testGroup "File IO" testFileIO
+  . testGroup "Navigation" testNavigation
+  . testGroup "Path Ops" testPathOps
+  )
+
+-------------------------------------------------------------------------------
+-- A. Path operations (pure)
+
+testPathOps :: (Int, Int) -> (Int, Int)
+testPathOps =
+  ( testEqual "pathJoin" (pathJoin "/home" "user") "/home/user"
+  . testEqual "pathSplit dir" (.0 (pathSplit "/home/user/file.txt")) "/home/user"
+  . testEqual "pathSplit file" (.1 (pathSplit "/home/user/file.txt")) "file.txt"
+  . testEqual "pathDir" (pathDir "/home/user/file.txt") "/home/user"
+  . testEqual "pathBase" (pathBase "/home/user/file.txt") "file.txt"
+  . testEqual "pathExt" (pathExt "/home/user/file.txt") ".txt"
+  . testEqual "pathStem" (pathStem "/home/user/file.txt") "file"
+  . testEqual "replaceExt" (replaceExt "/home/user/file.txt" ".md") "/home/user/file.md"
+  . testEqual "addExt" (addExt "/home/user/file" ".txt") "/home/user/file.txt"
+  . testEqual "dropExt" (dropExt "/home/user/file.txt") "/home/user/file"
+  . testEqual "normPath" (normPath "/home/user/../user/./file.txt") "/home/user/file.txt"
+  . testTrue "isAbsolute on absolute" (isAbsolute "/home")
+  . testEqual "isAbsolute on relative" (isAbsolute "home") False
+  . testTrue "isRelative on relative" (isRelative "home")
+  . testEqual "isRelative on absolute" (isRelative "/home") False
+  . testEqual "pathComponents" (pathComponents "/home/user/file.txt") ["/", "home", "user", "file.txt"]
+  . testEqual "</> operator" ("/home" </> "user") "/home/user"
+  . testEqual "<.> operator" ("/home/user/file" <.> ".txt") "/home/user/file.txt"
+  )
+
+-------------------------------------------------------------------------------
+-- B. Navigation
+
+testNavigation :: (Int, Int) -> (Int, Int)
+testNavigation =
+  ( testTrue "pwd is absolute" (isAbsolute !(pwd))
+  . testNonEmpty "homeDir is non-empty" !(homeDir)
+  . testNonEmpty "tmpDir is non-empty" !(tmpDir)
+  )
+
+-------------------------------------------------------------------------------
+-- E. File IO helpers
+
+ioWriteRead :: <IO> Str
+ioWriteRead = do
+  writeFile "/tmp/morloc_st_wr.txt" "hello"
+  x <- readFile "/tmp/morloc_st_wr.txt"
+  x
+
+ioAppend :: <IO> Str
+ioAppend = do
+  writeFile "/tmp/morloc_st_app.txt" "hello"
+  appendFile "/tmp/morloc_st_app.txt" " world"
+  x <- readFile "/tmp/morloc_st_app.txt"
+  x
+
+ioWriteReadLines :: <IO> [Str]
+ioWriteReadLines = do
+  writeLines "/tmp/morloc_st_wrl.txt" ["alpha", "beta", "gamma"]
+  x <- readLines "/tmp/morloc_st_wrl.txt"
+  x
+
+ioReadHead :: <IO> [Str]
+ioReadHead = do
+  writeLines "/tmp/morloc_st_rh.txt" ["a", "b", "c", "d", "e"]
+  x <- readHead "/tmp/morloc_st_rh.txt" 2
+  x
+
+testFileIO :: (Int, Int) -> (Int, Int)
+testFileIO =
+  ( testEqual "readHead 2" !(ioReadHead) ["a", "b"]
+  . testEqual "writeLines/readLines" !(ioWriteReadLines) ["alpha", "beta", "gamma"]
+  . testEqual "appendFile" !(ioAppend) "hello world"
+  . testEqual "writeFile/readFile" !(ioWriteRead) "hello"
+  )
+
+-------------------------------------------------------------------------------
+-- F. File info helpers
+
+ioPathExists :: <IO> Bool
+ioPathExists = do
+  writeFile "/tmp/morloc_st_pe.txt" "x"
+  x <- pathExists "/tmp/morloc_st_pe.txt"
+  x
+
+ioIsFileOnFile :: <IO> Bool
+ioIsFileOnFile = do
+  writeFile "/tmp/morloc_st_if.txt" "x"
+  x <- isFile "/tmp/morloc_st_if.txt"
+  x
+
+ioFileSize :: <IO> Int
+ioFileSize = do
+  writeFile "/tmp/morloc_st_fs.txt" "hello"
+  x <- fileSize "/tmp/morloc_st_fs.txt"
+  x
+
+ioStatSize :: <IO> Int
+ioStatSize = do
+  writeFile "/tmp/morloc_st_ss.txt" "hello"
+  s <- stat "/tmp/morloc_st_ss.txt"
+  .size s
+
+ioStatIsFile :: <IO> Bool
+ioStatIsFile = do
+  writeFile "/tmp/morloc_st_sif.txt" "hello"
+  s <- stat "/tmp/morloc_st_sif.txt"
+  .isFile s
+
+testFileInfo :: (Int, Int) -> (Int, Int)
+testFileInfo =
+  ( testTrue "stat isFile" !(ioStatIsFile)
+  . testEqual "stat size" !(ioStatSize) 5
+  . testEqual "fileSize" !(ioFileSize) 5
+  . testTrue "isFile on file" !(ioIsFileOnFile)
+  . testEqual "isFile on dir" !(isFile "/tmp") False
+  . testTrue "isDir on dir" !(isDir "/tmp")
+  . testEqual "isDir on file" !(isDir "/tmp/morloc_st_if.txt") False
+  . testTrue "pathExists on file" !(ioPathExists)
+  . testEqual "pathExists missing" !(pathExists "/tmp/morloc_nonexistent_xyz") False
+  )
+
+-------------------------------------------------------------------------------
+-- C. Directory ops helpers
+
+ioMkdir :: <IO> Bool
+ioMkdir = do
+  cleanDir "/tmp/morloc_st_mkdir"
+  mkdir "/tmp/morloc_st_mkdir/sub/nested"
+  x <- isDir "/tmp/morloc_st_mkdir/sub/nested"
+  x
+
+ioLs :: <IO> [Str]
+ioLs = do
+  cleanDir "/tmp/morloc_st_ls"
+  writeFile "/tmp/morloc_st_ls/a.txt" "a"
+  writeFile "/tmp/morloc_st_ls/b.txt" "b"
+  x <- ls "/tmp/morloc_st_ls"
+  x
+
+testDirOps :: (Int, Int) -> (Int, Int)
+testDirOps =
+  ( testContains "ls contains a.txt" !(ioLs) "a.txt"
+  . testContains "ls contains b.txt" !(ioLs) "b.txt"
+  . testTrue "mkdir creates nested dirs" !(ioMkdir)
+  )
+
+-------------------------------------------------------------------------------
+-- G. Glob helpers
+
+ioGlob :: <IO> [Str]
+ioGlob = do
+  cleanDir "/tmp/morloc_st_glob"
+  writeFile "/tmp/morloc_st_glob/foo.txt" ""
+  writeFile "/tmp/morloc_st_glob/bar.txt" ""
+  writeFile "/tmp/morloc_st_glob/baz.py" ""
+  x <- glob "/tmp/morloc_st_glob/*.txt"
+  x
+
+testGlob :: (Int, Int) -> (Int, Int)
+testGlob =
+  ( testEqual "glob *.txt" !(ioGlob) ["/tmp/morloc_st_glob/bar.txt", "/tmp/morloc_st_glob/foo.txt"]
+  )
+
+-------------------------------------------------------------------------------
+-- H. Process helpers
+
+testProcess :: (Int, Int) -> (Int, Int)
+testProcess =
+  ( testGe "getPid > 0" !(getPid) 1
+  . testEqual "capture echo" !(capture "echo" ["captured"]) "captured\n"
+  . testEqual "shell echo stdout" (.stdout !(shell "echo hello world")) "hello world\n"
+  . testEqual "shell echo exitCode" (.exitCode !(shell "echo hello world")) 0
+  . testEqual "run echo stdout" (.stdout !(run "echo" ["hello"])) "hello\n"
+  . testEqual "run echo exitCode" (.exitCode !(run "echo" ["hello"])) 0
+  )
+
+-------------------------------------------------------------------------------
+-- K. Environment variable helpers
+
+ioSetGetEnv :: <IO> Str
+ioSetGetEnv = do
+  setEnv "MORLOC_ST_SGET" "test_value_42"
+  x <- getEnv "MORLOC_ST_SGET"
+  x
+
+ioHasEnvAfterSet :: <IO> Bool
+ioHasEnvAfterSet = do
+  setEnv "MORLOC_ST_HAS" "yes"
+  x <- hasEnv "MORLOC_ST_HAS"
+  x
+
+ioHasEnvAfterUnset :: <IO> Bool
+ioHasEnvAfterUnset = do
+  setEnv "MORLOC_ST_UNSET" "val"
+  unsetEnv "MORLOC_ST_UNSET"
+  x <- hasEnv "MORLOC_ST_UNSET"
+  x
+
+testEnvVars :: (Int, Int) -> (Int, Int)
+testEnvVars =
+  ( testEqual "hasEnv after unsetEnv" !(ioHasEnvAfterUnset) False
+  . testTrue "hasEnv after setEnv" !(ioHasEnvAfterSet)
+  . testEqual "setEnv/getEnv" !(ioSetGetEnv) "test_value_42"
+  )
+
+-------------------------------------------------------------------------------
+-- J. System info
+
+testSysInfo :: (Int, Int) -> (Int, Int)
+testSysInfo =
+  ( testGe "cpuCount >= 1" !(cpuCount) 1
+  . testNonEmpty "hostname non-empty" !(hostname)
+  . testNonEmpty "uname osName non-empty" (.osName !(uname))
+  . testNonEmpty "uname machine non-empty" (.machine !(uname))
+  )
