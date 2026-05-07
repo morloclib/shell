@@ -19,7 +19,7 @@ source Py from "shell-test.py"
 
 testEqual :: Str -> a -> a -> (Int, Int) -> (Int, Int)
 testTrue :: Str -> Bool -> (Int, Int) -> (Int, Int)
-testGe :: Str -> Int -> Int -> (Int, Int) -> (Int, Int)
+testGe :: Str -> a -> a -> (Int, Int) -> (Int, Int)
 testNonEmpty :: Str -> Str -> (Int, Int) -> (Int, Int)
 testContains :: Str -> [a] -> a -> (Int, Int) -> (Int, Int)
 printMsg :: Str -> a -> a
@@ -142,13 +142,13 @@ ioIsFileOnFile = do
   x <- isFile "/tmp/morloc_st_if.txt"
   x
 
-ioFileSize :: <IO> Int
+ioFileSize :: <IO> Bytes
 ioFileSize = do
   writeFile "/tmp/morloc_st_fs.txt" "hello"
   x <- fileSize "/tmp/morloc_st_fs.txt"
   x
 
-ioStatSize :: <IO> Int
+ioStatSize :: <IO> Bytes
 ioStatSize = do
   writeFile "/tmp/morloc_st_ss.txt" "hello"
   s <- stat "/tmp/morloc_st_ss.txt"

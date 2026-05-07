@@ -21,35 +21,39 @@ type DirPath = Str
 --' literal: true
 type Extension = Str
 
---' A process identifier
+--' A process identifier (POSIX pid_t, signed 32-bit)
 --' metavar: PID
-type Pid = Int
+type Pid = Int32
 
---' A process exit code (0 = success)
+--' A process exit code (0 = success). POSIX wait status truncates to 8
+--' bits, but the carrier on POSIX is `int`.
 --' metavar: CODE
-type ExitCode = Int
+type ExitCode = Int32
 
---' A POSIX signal number
+--' A POSIX signal number (POSIX `int` signum)
 --' metavar: SIG
-type Signal = Int
+type Signal = Int32
 
---' A file permission mode in octal (e.g., 0o755)
+--' A file permission mode in octal (e.g., 0o755). POSIX mode_t is unsigned
+--' 32-bit.
 --' metavar: MODE
-type FileMode = Int
+type FileMode = UInt32
 
---' A numeric user identifier
+--' A numeric user identifier (POSIX uid_t, unsigned 32-bit)
 --' metavar: UID
-type Uid = Int
+type Uid = UInt32
 
---' A numeric group identifier
+--' A numeric group identifier (POSIX gid_t, unsigned 32-bit)
 --' metavar: GID
-type Gid = Int
+type Gid = UInt32
 
---' A POSIX timestamp (seconds since epoch)
+--' A POSIX timestamp in seconds since the epoch (POSIX time_t, signed
+--' 64-bit). Sub-second precision is intentionally dropped so timestamps
+--' are equality-comparable.
 --' metavar: TIME
-type Timestamp = Real
+type Timestamp = Int64
 
---' A size in bytes
+--' A size in bytes (POSIX off_t, signed 64-bit)
 --' metavar: BYTES
 type Bytes = Int64
 
@@ -88,8 +92,8 @@ record FileStat where
   owner :: Str
   --' group name
   group :: Str
-  --' number of hard links
-  nlinks :: Int
+  --' number of hard links (POSIX nlink_t, unsigned)
+  nlinks :: UInt64
   --' true if regular file
   isFile :: Bool
   --' true if directory
