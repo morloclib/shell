@@ -1,5 +1,5 @@
 name: shell
-version: 0.1.0
+version: 0.2.0
 homepage: https://github.com/morloclib/shell
 synopsis: Shell and system operations for morloc
 description: Type-signature-only module defining the API for CLI/shell operations
