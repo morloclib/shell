@@ -8,17 +8,14 @@ import root
 
 --' A filesystem path (file or directory)
 --' metavar: PATH
---' literal: true
 type Path = Str
 
 --' A directory path
 --' metavar: DIR
---' literal: true
 type DirPath = Str
 
 --' A file extension including the dot (e.g., ".txt")
 --' metavar: EXT
---' literal: true
 type Extension = Str
 
 --' A process identifier (POSIX pid_t, signed 32-bit)
@@ -59,12 +56,10 @@ type Bytes = Int64
 
 --' A glob pattern for matching paths (e.g., "*.txt")
 --' metavar: GLOB
---' literal: true
 type GlobPattern = Str
 
 --' An environment variable name
 --' metavar: VAR
---' literal: true
 type EnvVar = Str
 
 
@@ -255,7 +250,6 @@ record FindOpts where
   --' arg: -n/--name
   --' metavar: GLOB
   --' default: "*"
-  --' literal: true
   namePattern :: Str
 
   --' maximum traversal depth (-1 for unlimited)
@@ -320,7 +314,6 @@ record RunOpts where
   --' arg: -C/--cwd
   --' metavar: DIR
   --' default: "."
-  --' literal: true
   cwd :: Str
 
   --' environment variables to set (key=value pairs)
@@ -532,7 +525,6 @@ readHead :: Path -> Int -> <IO> [Str]
 ------------------------
 
 --' Get detailed file status information
---' literal: true
 stat :: Path -> <IO> FileStat
 
 --' Get the size of a file in bytes
@@ -578,9 +570,6 @@ shell :: Str -> <IO> ProcessResult
 
 --' Run a command and return only its stdout
 capture :: Str -> [Str] -> <IO> Str
-
---' Replace the current process with a new command
-exec :: Str -> [Str] -> <IO> Unit
 
 
 -- I. Process information

@@ -28,9 +28,9 @@ cleanDir :: Str -> <IO> Unit
 
 testGroup
     :: Str
-    -> ((Int, Int) -> (Int, Int))
+    -> ((Int, Int) -> <IO> (Int, Int))
     -> (Int, Int)
-    -> (Int, Int)
+    -> <IO> (Int, Int)
 testGroup msg tests = tests . printMsg msg
 
 passed :: (Int, Int) -> Bool
@@ -41,26 +41,24 @@ test = runTests (0,0)
 -------------------------------------------------------------------------------
 -- Test suite
 
-runTests :: (Int, Int) -> Bool
-runTests =
-  ( passed
-  . printResult
-  . testGroup "System Info" testSysInfo
-  . testGroup "Environment" testEnvVars
-  . testGroup "Process" testProcess
-  . testGroup "Glob" testGlob
-  . testGroup "Directory Ops" testDirOps
-  . testGroup "File Info" testFileInfo
-  . testGroup "File IO" testFileIO
-  . testGroup "Navigation" testNavigation
-  . testGroup "Path Ops" testPathOps
-  )
+runTests :: (Int, Int) -> <IO> Bool
+runTests s0 = do
+  s1 <- testGroup "Path Ops"      testPathOps    s0
+  s2 <- testGroup "Navigation"    testNavigation s1
+  s3 <- testGroup "File IO"       testFileIO     s2
+  s4 <- testGroup "File Info"     testFileInfo   s3
+  s5 <- testGroup "Directory Ops" testDirOps     s4
+  s6 <- testGroup "Glob"          testGlob       s5
+  s7 <- testGroup "Process"       testProcess    s6
+  s8 <- testGroup "Environment"   testEnvVars    s7
+  s9 <- testGroup "System Info"   testSysInfo    s8
+  passed (printResult s9)
 
 -------------------------------------------------------------------------------
 -- A. Path operations (pure)
 
-testPathOps :: (Int, Int) -> (Int, Int)
-testPathOps =
+testPathOps :: (Int, Int) -> <IO> (Int, Int)
+testPathOps xs = do
   ( testEqual "pathJoin" (pathJoin "/home" "user") "/home/user"
   . testEqual "pathSplit dir" (.0 (pathSplit "/home/user/file.txt")) "/home/user"
   . testEqual "pathSplit file" (.1 (pathSplit "/home/user/file.txt")) "file.txt"
@@ -79,17 +77,20 @@ testPathOps =
   . testEqual "pathComponents" (pathComponents "/home/user/file.txt") ["/", "home", "user", "file.txt"]
   . testEqual "</> operator" ("/home" </> "user") "/home/user"
   . testEqual "<.> operator" ("/home/user/file" <.> ".txt") "/home/user/file.txt"
-  )
+  ) xs
 
 -------------------------------------------------------------------------------
 -- B. Navigation
 
-testNavigation :: (Int, Int) -> (Int, Int)
-testNavigation =
-  ( testTrue "pwd is absolute" (isAbsolute !(pwd))
-  . testNonEmpty "homeDir is non-empty" !(homeDir)
-  . testNonEmpty "tmpDir is non-empty" !(tmpDir)
-  )
+testNavigation :: (Int, Int) -> <IO> (Int, Int)
+testNavigation xs = do
+  p <- pwd
+  h <- homeDir
+  t <- tmpDir
+  ( testTrue "pwd is absolute" (isAbsolute p)
+  . testNonEmpty "homeDir is non-empty" h
+  . testNonEmpty "tmpDir is non-empty" t
+  ) xs
 
 -------------------------------------------------------------------------------
 -- E. File IO helpers
@@ -119,13 +120,17 @@ ioReadHead = do
   x <- readHead "/tmp/morloc_st_rh.txt" 2
   x
 
-testFileIO :: (Int, Int) -> (Int, Int)
-testFileIO =
-  ( testEqual "readHead 2" !(ioReadHead) ["a", "b"]
-  . testEqual "writeLines/readLines" !(ioWriteReadLines) ["alpha", "beta", "gamma"]
-  . testEqual "appendFile" !(ioAppend) "hello world"
-  . testEqual "writeFile/readFile" !(ioWriteRead) "hello"
-  )
+testFileIO :: (Int, Int) -> <IO> (Int, Int)
+testFileIO xs = do
+  wr  <- ioWriteRead
+  ap  <- ioAppend
+  wrl <- ioWriteReadLines
+  rh  <- ioReadHead
+  ( testEqual "readHead 2" rh ["a", "b"]
+  . testEqual "writeLines/readLines" wrl ["alpha", "beta", "gamma"]
+  . testEqual "appendFile" ap "hello world"
+  . testEqual "writeFile/readFile" wr "hello"
+  ) xs
 
 -------------------------------------------------------------------------------
 -- F. File info helpers
@@ -160,18 +165,27 @@ ioStatIsFile = do
   s <- stat "/tmp/morloc_st_sif.txt"
   .isFile s
 
-testFileInfo :: (Int, Int) -> (Int, Int)
-testFileInfo =
-  ( testTrue "stat isFile" !(ioStatIsFile)
-  . testEqual "stat size" !(ioStatSize) 5
-  . testEqual "fileSize" !(ioFileSize) 5
-  . testTrue "isFile on file" !(ioIsFileOnFile)
-  . testEqual "isFile on dir" !(isFile "/tmp") False
-  . testTrue "isDir on dir" !(isDir "/tmp")
-  . testEqual "isDir on file" !(isDir "/tmp/morloc_st_if.txt") False
-  . testTrue "pathExists on file" !(ioPathExists)
-  . testEqual "pathExists missing" !(pathExists "/tmp/morloc_nonexistent_xyz") False
-  )
+testFileInfo :: (Int, Int) -> <IO> (Int, Int)
+testFileInfo xs = do
+  sif        <- ioStatIsFile
+  ssz        <- ioStatSize
+  fsz        <- ioFileSize
+  iff        <- ioIsFileOnFile
+  isFileTmp  <- isFile "/tmp"
+  isDirTmp   <- isDir "/tmp"
+  isDirFile  <- isDir "/tmp/morloc_st_if.txt"
+  peFile     <- ioPathExists
+  peMissing  <- pathExists "/tmp/morloc_nonexistent_xyz"
+  ( testTrue "stat isFile" sif
+  . testEqual "stat size" ssz 5
+  . testEqual "fileSize" fsz 5
+  . testTrue "isFile on file" iff
+  . testEqual "isFile on dir" isFileTmp False
+  . testTrue "isDir on dir" isDirTmp
+  . testEqual "isDir on file" isDirFile False
+  . testTrue "pathExists on file" peFile
+  . testEqual "pathExists missing" peMissing False
+  ) xs
 
 -------------------------------------------------------------------------------
 -- C. Directory ops helpers
@@ -191,12 +205,14 @@ ioLs = do
   x <- ls "/tmp/morloc_st_ls"
   x
 
-testDirOps :: (Int, Int) -> (Int, Int)
-testDirOps =
-  ( testContains "ls contains a.txt" !(ioLs) "a.txt"
-  . testContains "ls contains b.txt" !(ioLs) "b.txt"
-  . testTrue "mkdir creates nested dirs" !(ioMkdir)
-  )
+testDirOps :: (Int, Int) -> <IO> (Int, Int)
+testDirOps xs = do
+  entries <- ioLs
+  mk      <- ioMkdir
+  ( testContains "ls contains a.txt" entries "a.txt"
+  . testContains "ls contains b.txt" entries "b.txt"
+  . testTrue "mkdir creates nested dirs" mk
+  ) xs
 
 -------------------------------------------------------------------------------
 -- G. Glob helpers
@@ -210,23 +226,28 @@ ioGlob = do
   x <- glob "/tmp/morloc_st_glob/*.txt"
   x
 
-testGlob :: (Int, Int) -> (Int, Int)
-testGlob =
-  ( testEqual "glob *.txt" !(ioGlob) ["/tmp/morloc_st_glob/bar.txt", "/tmp/morloc_st_glob/foo.txt"]
-  )
+testGlob :: (Int, Int) -> <IO> (Int, Int)
+testGlob xs = do
+  g <- ioGlob
+  ( testEqual "glob *.txt" g ["/tmp/morloc_st_glob/bar.txt", "/tmp/morloc_st_glob/foo.txt"]
+  ) xs
 
 -------------------------------------------------------------------------------
 -- H. Process helpers
 
-testProcess :: (Int, Int) -> (Int, Int)
-testProcess =
-  ( testGe "getPid > 0" !(getPid) 1
-  . testEqual "capture echo" !(capture "echo" ["captured"]) "captured\n"
-  . testEqual "shell echo stdout" (.stdout !(shell "echo hello world")) "hello world\n"
-  . testEqual "shell echo exitCode" (.exitCode !(shell "echo hello world")) 0
-  . testEqual "run echo stdout" (.stdout !(run "echo" ["hello"])) "hello\n"
-  . testEqual "run echo exitCode" (.exitCode !(run "echo" ["hello"])) 0
-  )
+testProcess :: (Int, Int) -> <IO> (Int, Int)
+testProcess xs = do
+  pid     <- getPid
+  cap     <- capture "echo" ["captured"]
+  shOut   <- shell "echo hello world"
+  runOut  <- run "echo" ["hello"]
+  ( testGe "getPid > 0" pid 1
+  . testEqual "capture echo" cap "captured\n"
+  . testEqual "shell echo stdout" (.stdout shOut) "hello world\n"
+  . testEqual "shell echo exitCode" (.exitCode shOut) 0
+  . testEqual "run echo stdout" (.stdout runOut) "hello\n"
+  . testEqual "run echo exitCode" (.exitCode runOut) 0
+  ) xs
 
 -------------------------------------------------------------------------------
 -- K. Environment variable helpers
@@ -250,20 +271,26 @@ ioHasEnvAfterUnset = do
   x <- hasEnv "MORLOC_ST_UNSET"
   x
 
-testEnvVars :: (Int, Int) -> (Int, Int)
-testEnvVars =
-  ( testEqual "hasEnv after unsetEnv" !(ioHasEnvAfterUnset) False
-  . testTrue "hasEnv after setEnv" !(ioHasEnvAfterSet)
-  . testEqual "setEnv/getEnv" !(ioSetGetEnv) "test_value_42"
-  )
+testEnvVars :: (Int, Int) -> <IO> (Int, Int)
+testEnvVars xs = do
+  unset <- ioHasEnvAfterUnset
+  hasV  <- ioHasEnvAfterSet
+  val   <- ioSetGetEnv
+  ( testEqual "hasEnv after unsetEnv" unset False
+  . testTrue "hasEnv after setEnv" hasV
+  . testEqual "setEnv/getEnv" val "test_value_42"
+  ) xs
 
 -------------------------------------------------------------------------------
 -- J. System info
 
-testSysInfo :: (Int, Int) -> (Int, Int)
-testSysInfo =
-  ( testGe "cpuCount >= 1" !(cpuCount) 1
-  . testNonEmpty "hostname non-empty" !(hostname)
-  . testNonEmpty "uname osName non-empty" (.osName !(uname))
-  . testNonEmpty "uname machine non-empty" (.machine !(uname))
-  )
+testSysInfo :: (Int, Int) -> <IO> (Int, Int)
+testSysInfo xs = do
+  c <- cpuCount
+  h <- hostname
+  o <- uname
+  ( testTrue "cpuCount >= 1" (c >= 1)
+  . testNonEmpty "hostname non-empty" h
+  . testNonEmpty "uname osName non-empty" (.osName o)
+  . testNonEmpty "uname machine non-empty" (.machine o)
+  ) xs
