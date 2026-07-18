@@ -31,7 +31,9 @@ testGroup
     -> ((Int, Int) -> <IO> (Int, Int))
     -> (Int, Int)
     -> <IO> (Int, Int)
-testGroup msg tests = tests . printMsg msg
+testGroup msg tests priors = do
+  newPriors <- tests priors
+  printMsg msg newPriors
 
 passed :: (Int, Int) -> Bool
 passed t = 0 == (.0 t)
