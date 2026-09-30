@@ -2,64 +2,33 @@ module shell.test (test)
 
 import shell
 import root-py
+import unittest
 
--------------------------------------------------------------------------------
--- Test suite functions
-
-source Py from "shell-test.py"
-    ( "testEqual"
-    , "testTrue"
-    , "testGe"
-    , "testNonEmpty"
-    , "testContains"
-    , "printMsg"
-    , "printResult"
-    , "cleanDir"
-    )
-
-testEqual :: Str -> a -> a -> (Int, Int) -> (Int, Int)
-testTrue :: Str -> Bool -> (Int, Int) -> (Int, Int)
-testGe :: Str -> a -> a -> (Int, Int) -> (Int, Int)
-testNonEmpty :: Str -> Str -> (Int, Int) -> (Int, Int)
-testContains :: Str -> [a] -> a -> (Int, Int) -> (Int, Int)
-printMsg :: Str -> a -> a
-printResult :: (Int, Int) -> (Int, Int)
+source Py from "shell-test.py" ("cleanDir")
 cleanDir :: Str -> <IO> Unit
 
-testGroup
-    :: Str
-    -> ((Int, Int) -> <IO> (Int, Int))
-    -> (Int, Int)
-    -> <IO> (Int, Int)
-testGroup msg tests priors = do
-  newPriors <- tests priors
-  printMsg msg newPriors
-
-passed :: (Int, Int) -> Bool
-passed t = 0 == (.0 t)
-
-test = runTests (0,0)
+test = suiteE runTests
 
 -------------------------------------------------------------------------------
 -- Test suite
 
-runTests :: (Int, Int) -> <IO> Bool
+runTests :: Results -> <IO> Results
 runTests s0 = do
-  s1 <- testGroup "Path Ops"      testPathOps    s0
-  s2 <- testGroup "Navigation"    testNavigation s1
-  s3 <- testGroup "File IO"       testFileIO     s2
-  s4 <- testGroup "File Info"     testFileInfo   s3
-  s5 <- testGroup "Directory Ops" testDirOps     s4
-  s6 <- testGroup "Glob"          testGlob       s5
-  s7 <- testGroup "Process"       testProcess    s6
-  s8 <- testGroup "Environment"   testEnvVars    s7
-  s9 <- testGroup "System Info"   testSysInfo    s8
-  passed (printResult s9)
+  s1 <- groupE "Path Ops"      testPathOps    s0
+  s2 <- groupE "Navigation"    testNavigation s1
+  s3 <- groupE "File IO"       testFileIO     s2
+  s4 <- groupE "File Info"     testFileInfo   s3
+  s5 <- groupE "Directory Ops" testDirOps     s4
+  s6 <- groupE "Glob"          testGlob       s5
+  s7 <- groupE "Process"       testProcess    s6
+  s8 <- groupE "Environment"   testEnvVars    s7
+  s9 <- groupE "System Info"   testSysInfo    s8
+  s9
 
 -------------------------------------------------------------------------------
 -- A. Path operations (pure)
 
-testPathOps :: (Int, Int) -> <IO> (Int, Int)
+testPathOps :: Results -> <IO> Results
 testPathOps xs = do
   ( testEqual "pathJoin" (pathJoin "/home" "user") "/home/user"
   . testEqual "pathSplit dir" (.0 (pathSplit "/home/user/file.txt")) "/home/user"
@@ -84,7 +53,7 @@ testPathOps xs = do
 -------------------------------------------------------------------------------
 -- B. Navigation
 
-testNavigation :: (Int, Int) -> <IO> (Int, Int)
+testNavigation :: Results -> <IO> Results
 testNavigation xs = do
   p <- pwd
   h <- homeDir
@@ -122,7 +91,7 @@ ioReadHead = do
   x <- readHead "/tmp/morloc_st_rh.txt" 2
   x
 
-testFileIO :: (Int, Int) -> <IO> (Int, Int)
+testFileIO :: Results -> <IO> Results
 testFileIO xs =
   ( testEqual "readHead 2" (!ioReadHead) ["a", "b"]
   . testEqual "writeLines/readLines" (!ioWriteReadLines) ["alpha", "beta", "gamma"]
@@ -163,7 +132,7 @@ ioStatIsFile = do
   s <- stat "/tmp/morloc_st_sif.txt"
   .isFile s
 
-testFileInfo :: (Int, Int) -> <IO> (Int, Int)
+testFileInfo :: Results -> <IO> Results
 testFileInfo xs = do
   sif        <- ioStatIsFile
   ssz        <- ioStatSize
@@ -203,7 +172,7 @@ ioLs = do
   x <- ls "/tmp/morloc_st_ls"
   x
 
-testDirOps :: (Int, Int) -> <IO> (Int, Int)
+testDirOps :: Results -> <IO> Results
 testDirOps xs = do
   entries <- ioLs
   mk      <- ioMkdir
@@ -224,7 +193,7 @@ ioGlob = do
   x <- glob "/tmp/morloc_st_glob/*.txt"
   x
 
-testGlob :: (Int, Int) -> <IO> (Int, Int)
+testGlob :: Results -> <IO> Results
 testGlob xs = do
   g <- ioGlob
   ( testEqual "glob *.txt" g ["/tmp/morloc_st_glob/bar.txt", "/tmp/morloc_st_glob/foo.txt"]
@@ -233,7 +202,7 @@ testGlob xs = do
 -------------------------------------------------------------------------------
 -- H. Process helpers
 
-testProcess :: (Int, Int) -> <IO> (Int, Int)
+testProcess :: Results -> <IO> Results
 testProcess xs = do
   pid     <- getPid
   cap     <- capture "echo" ["captured"]
@@ -269,7 +238,7 @@ ioHasEnvAfterUnset = do
   x <- hasEnv "MORLOC_ST_UNSET"
   x
 
-testEnvVars :: (Int, Int) -> <IO> (Int, Int)
+testEnvVars :: Results -> <IO> Results
 testEnvVars xs = do
   unset <- ioHasEnvAfterUnset
   hasV  <- ioHasEnvAfterSet
@@ -282,7 +251,7 @@ testEnvVars xs = do
 -------------------------------------------------------------------------------
 -- J. System info
 
-testSysInfo :: (Int, Int) -> <IO> (Int, Int)
+testSysInfo :: Results -> <IO> Results
 testSysInfo xs = do
   c <- cpuCount
   h <- hostname
